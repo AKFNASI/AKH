@@ -8,7 +8,7 @@ on:
 jobs:
   silent_core:
     runs-on: ubuntu-latest
-    timeout-minutes: 300  # Maksimal jalan 5 jam
+    timeout-minutes: 300
 
     steps:
       - name: Setup Environment
